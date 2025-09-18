@@ -1,8 +1,9 @@
 import { Server } from "socket.io";
-import Ai from "../service/ai.service.js";
+import generateAiResponse from "../service/ai.service.js";
 import cookie from "cookie";
 import jwt from "jsonwebtoken";
 import userModel from "../models/user.model.js";
+import messageModel from "../models/message.model.js";
 
 const initSocketServer = (httpServer) => {
   const io = new Server(httpServer, {});
@@ -24,10 +25,37 @@ const initSocketServer = (httpServer) => {
     }
   });
 
-  io.on("connection", (socket) => {   
-    socket.on("ai-message", async ({ prompt }) => {
-      const AiResponse = await Ai(prompt);
-      socket.emit("ai-responese", { AiResponse });
+  io.on("connection", (socket) => {
+    socket.on("ai-message", async (messagePayload) => {
+      await messageModel.create({
+        chatId: messagePayload.chatId,
+        userId: socket.user._id,
+        role: "user",
+        content: messagePayload.prompt,
+      });
+
+      const chatHistory = (await messageModel.find({
+        chatId: messagePayload.chatId,
+      }).sort({createdAt:-1}).limit(10).lean()).reverse()
+
+      const aiResponse = await generateAiResponse(chatHistory.map(item=>(
+        {
+          role:item.role,
+          parts:[{text:item.content}]
+        }
+      )));
+
+      await messageModel.create({
+        chatId: messagePayload.chatId,
+        userId: socket.user._id,
+        role: "model",
+        content: aiResponse,
+      });
+
+      socket.emit("ai-responese", {
+        chatId: messagePayload.chatId,
+        content: aiResponse,
+      });
     });
   });
 };

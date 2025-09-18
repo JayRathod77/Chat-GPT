@@ -5,12 +5,10 @@ const messageSchema = new mongoose.Schema(
     chatId: {
       type: mongoose.Schema.ObjectId,
       ref: "chat",
-      require: true,
     },
     userId: {
       type: mongoose.Schema.ObjectId,
       ref: "user",
-      require: true,
     },
     role: {
       type: String,
